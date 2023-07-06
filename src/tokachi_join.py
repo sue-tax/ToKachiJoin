@@ -306,77 +306,69 @@ class ToKachiJoin(object):
 
             d.dprint(file_name)
 
-            read_text = ToKachiJoin.load(
+            read_text = ToKachiJoin.load_line(
                     config.folder_name, file_name)
             d.dprint(read_text)
             for row in range(3, len(read_text)):
-                if read_text[row] == '---':
-                    data_list = read_text[3:row]
+                d.dprint(read_text[row])
+                if read_text[row] == '---\n':
+                    d.dprint("guide")
+                    d.dprint(read_text[row])
+                    data_list = read_text[:row]
 # [条(全)](国税通則法施行＿令＿第１４条_.md)  [項(全)](国税通則法施行＿令＿第１４条第１項_.md)
 # [条(全)](国税通則法施行＿令＿第１４条_.md)  [項](国税通則法施行＿令＿第１４条第１項.md)
                     guide_list = ['\n']
-                    guide_str = read_text[row+1]
+                    guide_str = read_text[row+2]
                     d.dprint(guide_str)
                     index = guide_str.rfind("]")
-                    guide_new_str = guide_str[:index-3] + \
-                            guide_str[index:-5] + ".md)"
+                    guide_new_str = \
+                            guide_str[:index-3] + \
+                            guide_str[index:-6] + ".md)"
                     d.dprint(guide_new_str)
                     guide_list.append(guide_new_str)
-                    guide_list.extend(read_text[row+2:])
+                    guide_list.append('\n')
+                    guide_list.extend(read_text[row+3:-1])
                     d.dprint(guide_list)
                     break
             else:
-                data_list = read_text[3:]
+                data_list = read_text[:]
                 guide_list = []
 
             items = paragraph.xpath('.//Item')
+
             for item in items:
+#                 (gou_data_list, gou_guide) = \
                 gou_data_list = \
                         self.proc_gou(
                         soku, midashi,
                         jou_bangou_tuple, kou_bangou,
                         item,
                         mei, kubun)
+                d.dprint(gou_data_list)
+                data_list.extend(gou_data_list)
+#                 guide_list.append(gou_guide)
 
-                pass
+            data_list.append('---\n\n')
+            data_list.extend(guide_list)
+            del guide_list
+            data_list.append(read_text[-1])
 
+            d.dprint(data_list)
+            data_bun = ''.join(data_list)
+            del data_list
+            (file_name_all, str_title, kubun_mei, jou_list) = \
+                    Md.sakusei_title('',
+                    mei, kubun, soku,
+                    (jou_bangou_tuple, kou_bangou, None),
+                    midashi, '_')
+            ToKachiJoin.save(
+                    config.folder_name, file_name_all,
+                    data_bun)
 
-            items = paragraph.xpath('.//Item')
-            for item in items:
-                pass
-#                 gou = self.create_gou(
-#                         soku, midashi,
-#                         jou_bangou_tuple, kou_bangou,
-#                         item)
-#                 if gou != None:
-#                     gou_list.append(gou)
-
-            item_title = paragraph.xpath('./ParagraphNum')
-            kou.set_item_title(item_title[0].text)
-            zenkou = paragraph.xpath( \
-                    'preceding-sibling::' \
-                    'Paragraph[position()=1]')
-            if len(zenkou) == 1:
-                zenkou_num = zenkou[0].get('Num')
-                if not ':' in zenkou_num:
-                    zenkou_bangou \
-                            = int(zenkou_num)
-                    kou.set_zenkou(
-                            (jou_bangou_tuple,
-                            zenkou_bangou, None))
-            jikou = paragraph.xpath( \
-                    'following-sibling::' \
-                    'Paragraph[position()=1]')
-            if len(jikou) == 1:
-                jikou_num = jikou[0].get('Num')
-                if not ':' in jikou_num:
-                    jikou_bangou \
-                            = int(jikou_num)
-                    kou.set_jikou(
-                            (jou_bangou_tuple,
-                            jikou_bangou, None))
-#         d.dprint_method_end()
-        return kou
+        kou_data_for_jou = []
+        kou_guide_list_for_jou = []
+        d.dprint_method_end()
+        return (kou_data_for_jou, kou_guide_list_for_jou)
 
 
     def proc_gou(self, soku,
@@ -391,6 +383,12 @@ class ToKachiJoin(object):
         num = item.get('Num')
         if ':' in num:  # 略や削除のときに、ある
             return None
+        titles = item.xpath('./ItemTitle')
+        if (len(titles) != 0) and \
+                (titles[0].text != None):
+            gou_data_list = [ titles[0].text, '　' ]
+        else:
+            gou_data_list = []
         gou_bangou_tuple = self.num2tuple(num)
         (file_name, str_title,
             _kubun_mei, _jou_list) = \
@@ -401,32 +399,41 @@ class ToKachiJoin(object):
                 '', '')
         d.dprint(file_name)
         d.dprint(str_title)
-        read_text = ToKachiJoin.load(
+        read_text = ToKachiJoin.load_line(
                 config.folder_name, file_name)
         d.dprint(read_text)
         for row in range(3, len(read_text)):
-            if read_text[row] == '---':
-                gou_data_list = read_text[3:row]
+            if read_text[row] == '---\n':
+                gou_data_list.extend(read_text[3:row])
                 break
         else:
-            gou_data_list = read_text[3:]
+            gou_data_list.extend(read_text[3:])
+#         guide_list = [ '[第' ]
+#         d.dprint(gou_bangou_tuple)
+#         guide_list.append('](')
+#         guide_list.append(file_name)
+#         guide_list.append(')')
+#         guide = ''.join(guide_list)
+#         del guide_list
         d.dprint_method_end()
+#         return (gou_data_list, guide)
         return gou_data_list
 
 
-    def save(self):
+    @classmethod
+    def save(cls, folder_name, file_name, file_bun ):
         # d.dprint_method_start()
-        # d.dprint(self.file_name)
-        with open(self.file_name,
+        full_name = os.path.join(folder_name, file_name)
+        with open(full_name,
             mode='w',
             encoding='UTF-8') as f:
-            f.write(self.file_bun)
-        # d.dprint_method_end()
+            f.write(file_bun)
+        d.dprint_method_end()
         return
 
 
     @classmethod
-    def load(cls, folder_name, file_name):
+    def load_line(cls, folder_name, file_name):
         '''
         指定されたフォルダ・ファイル名のファイルを
         読込み、Mdデータを作成する。
@@ -453,11 +460,11 @@ class ToKachiJoin(object):
 #             messagebox.showwarning(
 #                     'ファイル読込失敗', e)
             return None
-        read_text = ''.join(read_list)
-        del read_list
-        d.dprint(read_text)
+#         read_text = ''.join(read_list)
+#         del read_list
+        d.dprint(read_list)
         d.dprint_method_end()
-        return read_text
+        return read_list
 
 
     def num2tuple(self, num):
@@ -482,7 +489,7 @@ if __name__ == '__main__':
         config.folder_name = folder
 
 #         file = "国税通則"
-        file = "新型コロナ特例"
+        file = "地方法人税"
         mei = file
         ToKachiJoin(file + '法.xml', mei, 0)
 #         jou_list = jou_xml.get_jou_list()
