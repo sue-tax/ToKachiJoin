@@ -139,7 +139,8 @@ class ToKachiJoin(object):
                 midashi = title[0].text
             else:
                 midashi = ""
-            jou_data_list = [ midashi, "\n\n" ]
+            # TODO カラー
+            jou_data_list = [ midashi ]
 
             d.dprint(jou_bangou_tuple)
             (file_name, str_title,
@@ -200,77 +201,30 @@ class ToKachiJoin(object):
             jou_data_list.append('\n\n')
 
             jou_data_list.extend(kou_guide_list)
+            jou_data_list.append('[目次](index')
+            jou_data_list.append(mei)
+            if kubun == 0: # Md.kubunHou:
+                kubun_mei = '法＿＿＿＿'
+            elif kubun == 1: # Md.kubunRei:
+                kubun_mei = '法施行＿令'
+            else:
+                assert(kubun == 2) # Md.kubunKi)
+                kubun_mei = '法施行規則'
+            jou_data_list.append(kubun_mei)
+            jou_data_list.append('.md)\n\n')
 
-#         kou_list = jou_jou.get_kou_list()
-#         kou_list_full = []
-#         kou_list_part = []
-#         if kubun == Md.kubunHou:
-#             kubun_mei = '法＿＿＿＿'
-#         elif kubun == Md.kubunRei:
-#             kubun_mei = '法施行＿令'
-#         else:
-#             assert(kubun == Md.kubunKi)
-#             kubun_mei = '法施行規則'
-#         for kou in kou_list:
-#             kou_bangou_tuple = \
-#                     kou.get_jou_bangou_tuple()
-#             d.dprint(kou_bangou_tuple)
-#             kou_name = kou.get_kou_bangou()
-#             d.dprint(kou_name)
-#             kou_file_name = \
-#                     TransNum.create_link_name(
-#                     zeihou_mei, kubun_mei,
-#                     (kou_bangou_tuple, kou_name, None),
-#                     jou_jou.soku)
-#             kou_zenkaku = TransNum.i2z(kou_name)
-#             kou_list_full.append(
-#                     '[第' + kou_zenkaku + '項(全)](' \
-#                     + kou_file_name + '_.md)  ')
-#             kou_list_part.append(
-#                     '[第' + kou_zenkaku + '項 　 ](' \
-#                     + kou_file_name + '.md)  ')
-#         list_bun.extend(kou_list_full)
-#         list_bun.append('\n\n')
-#         list_bun.extend(kou_list_part)
-#         list_bun.append('\n\n')
-#
-# #         list_bun.append(str_tag)
-#         str_index_guid = cls.create_index_guid(
-#                 zeihou_mei, kubun)
-#         list_bun.append(str_index_guid)
-# #         d.dprint(list_bun)
-#         file_bun = ''.join(list_bun)
-#         del list_bun
-#
-# #         d.dprint_method_end()
-#         return (file_name, file_bun)
-#
-#             zenjou = article.xpath(
-# #                     'preceding-sibling::Article[position()=last()]')
-#                     'preceding-sibling::Article[position()=1]')
-#             if len(zenjou) == 1:
-#                 zenjou_num = zenjou[0].get('Num')
-#                 if not ':' in zenjou_num:
-#                     zenjou_bangou_tuple \
-#                             = self.num2tuple(zenjou_num)
-#                     jou.set_zenjou(zenjou_bangou_tuple)
-#             jijou = article.xpath(
-#                     'following-sibling::Article[position()=1]')
-#             if len(jijou) == 1:
-#                 jijou_num = jijou[0].get('Num')
-#                 if not ':' in jijou_num:
-#                     jijou_bangou_tuple \
-#                             = self.num2tuple(jijou_num)
-#                     jou.set_jijou(jijou_bangou_tuple)
-# #             d.dprint("========")
-# #             d.dprint(jou_bangou_tuple)
-# #             d.dprint(zenjou)
-# #             d.dprint("========")
-#             jou_list.append(jou)
-#         d.dprint(jou_data_list)
-        jou_data = ''.join(jou_data_list)
-        del jou_data_list
-        d.dprint(jou_data)
+            jou_data = ''.join(jou_data_list)
+            del jou_data_list
+            d.dprint(jou_data)
+            (file_name_all, str_title, kubun_mei, jou_list) = \
+                    Md.sakusei_title('',
+                    mei, kubun, soku,
+                    (jou_bangou_tuple, None, None),
+                    midashi, '_')
+            ToKachiJoin.save(
+                    config.folder_name, file_name_all,
+                    jou_data)
+
         d.dprint_method_end()
 
 
@@ -287,7 +241,8 @@ class ToKachiJoin(object):
 #                     soku, midashi, paragraphs,
 #                     mei, kubun)
         kou_data_for_jou = []
-        kou_guide_list_for_jou = []
+        kou_guide_list_all = []
+        kou_guide_list_part = []
         for paragraph in paragraphs:
             # 第１項の処理に注意
             num = paragraph.get('Num')
@@ -348,6 +303,15 @@ class ToKachiJoin(object):
                 data_list.extend(gou_data_list)
 #                 guide_list.append(gou_guide)
 
+            titles = paragraph.xpath('./ParagraphNum')
+            if (len(titles) != 0) and \
+                    (titles[0].text != None):
+                kou_title = titles[0].text
+            else:
+                kou_title = "１"
+            kou_data_for_jou.append(kou_title)
+            kou_data_for_jou.append("　")
+            kou_data_for_jou.extend(data_list[3:])
             data_list.append('---\n\n')
             data_list.extend(guide_list)
             del guide_list
@@ -365,10 +329,27 @@ class ToKachiJoin(object):
                     config.folder_name, file_name_all,
                     data_bun)
 
-        kou_data_for_jou = []
-        kou_guide_list_for_jou = []
+            kou_guide_list_all.append("[第")
+            titles = paragraph.xpath('./ParagraphNum')
+            if (len(titles) != 0) and \
+                    (titles[0].text != None):
+                kou_title = titles[0].text
+            else:
+                kou_title = "１"
+            kou_guide_list_all.append(kou_title)
+            kou_guide_list_all.append("項(全)](")
+            kou_guide_list_all.append(file_name_all)
+            kou_guide_list_all.append(") ")
+            kou_guide_list_part.append("[第")
+            kou_guide_list_part.append(kou_title)
+            kou_guide_list_part.append("項 　 ](")
+            kou_guide_list_part.append(file_name)
+            kou_guide_list_part.append(") ")
+        kou_guide_list_all.append("\n\n")
+        kou_guide_list_all.extend(kou_guide_list_part)
+        kou_guide_list_all.append("\n\n")
         d.dprint_method_end()
-        return (kou_data_for_jou, kou_guide_list_for_jou)
+        return (kou_data_for_jou, kou_guide_list_all)
 
 
     def proc_gou(self, soku,
