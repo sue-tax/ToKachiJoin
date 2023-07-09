@@ -48,19 +48,22 @@ class ToKachiJoin(object):
             if fusoku_name == None:
                 str_fusoku = "附則"
             else:
-                index = fusoku_name.find("日")
-                # 漢数字を全角アラビア数字に
-                str_hizuke = fusoku_name[:index+1] \
+#                 index = fusoku_name.find("日")
+#                 # 漢数字を全角アラビア数字に
+#                 str_hizuke = fusoku_name[:index+1] \
+#                         .replace('元', '一')
+                d.dprint(fusoku_name)
+                str_hizuke = fusoku_name \
                         .replace('元', '一')
+                d.dprint(str_hizuke)
                 str_ara = TransNum.k2a(
                         str_hizuke, True)
                 str_fusoku = "附則" + str_ara
             articles = fusoku.xpath(".//Article")
             d.dprint(articles)
             if len(articles) != 0:
-#                 self.proc_article(str_fusoku,
-#                         articles)
-                pass
+                self.proc_article(str_fusoku,
+                        articles, mei, kubun)
             else:
                 # 附則の中には、第Ｘ条がなく、
                 # 項のみの場合あり
@@ -77,47 +80,60 @@ class ToKachiJoin(object):
         仮の条として、各項を処理して
         str_fusokuは、附則名を示す。
         '''
-        d.dprint_method_start()
-        paragraphs = fusoku.xpath('Paragraph')
-        (file_name, str_title, _kubun_mei, _jou_list) = \
+        midashi = ""
+        # TODO カラー
+        jou_data_list = [ midashi ]
+
+        jou_bangou_tuple = (0,)
+        (file_name, str_title,
+            _kubun_mei, _jou_list) = \
                 Md.sakusei_title('',
                 mei, kubun,
                 str_fusoku,
-                ((0,),None,None), '', '')
+                (jou_bangou_tuple,None,None), '', '')
         d.dprint(file_name)
         d.dprint(str_title)
-        jou_data_list = [ str_title ]
-#         kou = self.create_kou(str_fusoku, midashi=None,
-#                 jou_bangou_tuple=(0,),
-#                 paragraph=paragraphs[0])
-#         jou = Jou_jou(bangou_tuple=(0,), kou=kou)
-#         for paragraph in paragraphs[1:]:
-#             kou = self.create_kou(str_fusoku,
-#                     midashi=None,
-#                     jou_bangou_tuple=(0,),
-#                     paragraph=paragraph)
-#             jou.tsuika_kou(kou)
-#         jou.set_kubun((None, None,
-#                 None, None, None))
-#         jou.set_soku(str_fusoku)
-# #         jou.set_midashi(midashi)
-#         jou_list.append(jou)
-#         jou_str = TransNum.bangou_tuple2str(
-#                 ((0,),None,None))
-#         midashi = jou.get_midashi()
-#         if midashi != None:
-#             index_list.append(
-#                     '[' + jou_str[0] + midashi + '](')
-#         else:
-#             index_list.append(
-#                     '[' + jou_str[0] + '](')
-#         (file_name, _str_title, _kubun_mei, _jou_list) = \
-#                 Md.sakusei_title('',
-#                 mei, kubun,
-#                 str_fusoku,
-#                 ((0,),None,None), '', '')
-#         index_list.append(file_name + ')\n\n')
-#         d.dprint(index_list)
+        jou_data_list.append(str_title)
+        jou_data_list.append("\n\n")
+
+        paragraphs = fusoku.xpath('Paragraph')
+        (kou_data_list, kou_guide_list) = \
+                self.proc_kou(
+                str_fusoku, midashi="",
+                jou_bangou_tuple=(0,),
+                paragraphs=paragraphs,
+                mei=mei, kubun=kubun)
+        jou_data_list.extend(kou_data_list)
+
+        jou_data_list.append('--- ---\n\n')
+        jou_data_list.append('~~前条(全)←~~　')
+        jou_data_list.append('~~→次条(全)~~')
+        jou_data_list.append('\n\n')
+
+        jou_data_list.extend(kou_guide_list)
+        jou_data_list.append('[目次](index')
+        jou_data_list.append(mei)
+        if kubun == 0: # Md.kubunHou:
+            kubun_mei = '法＿＿＿＿'
+        elif kubun == 1: # Md.kubunRei:
+            kubun_mei = '法施行＿令'
+        else:
+            assert(kubun == 2) # Md.kubunKi)
+            kubun_mei = '法施行規則'
+        jou_data_list.append(kubun_mei)
+        jou_data_list.append('.md)\n\n')
+
+        jou_data = ''.join(jou_data_list)
+        del jou_data_list
+        d.dprint(jou_data)
+        (file_name_all, str_title, kubun_mei, jou_list) = \
+                Md.sakusei_title('',
+                mei, kubun, str_fusoku,
+                (jou_bangou_tuple, None, None),
+                midashi, '_')
+        ToKachiJoin.save(
+                config.folder_name, file_name_all,
+                jou_data)
         d.dprint_method_end()
 
 
@@ -162,26 +178,33 @@ class ToKachiJoin(object):
                     mei, kubun)
             jou_data_list.extend(kou_data_list)
 
-            jou_data_list.append('---\n\n')
+            jou_data_list.append('--- ---\n\n')
             zenjou = article.xpath(
                     'preceding-sibling::Article[position()=1]')
-            if len(zenjou) == 1:
+#             zenjou = article.xpath(
+#                     'preceding-sibling::Article')
+            if len(zenjou) != 0:
                 zenjou_num = zenjou[0].get('Num')
-                zenjou_bangou_tuple \
-                        = self.num2tuple(zenjou_num)
-                zenjou_name = \
-                        Md.sakusei_file_name(
-                        mei, kubun, soku,
-                        (zenjou_bangou_tuple, None, None),
-                        midashi, '_')
-    #             d.dprint(zenjou_name)
-                jou_data_list.append('[前条(全)←](' \
-                        + zenjou_name + ')  ')
+                if not ':' in zenjou_num:
+                    zenjou_bangou_tuple \
+                            = self.num2tuple(zenjou_num)
+                    zenjou_name = \
+                            Md.sakusei_file_name(
+                            mei, kubun, soku,
+                            (zenjou_bangou_tuple, None, None),
+                            midashi, '_')
+        #             d.dprint(zenjou_name)
+                    jou_data_list.append('[前条(全)←](' \
+                            + zenjou_name + ')  ')
+                else:
+                    jou_data_list.append('~~前条(全)←~~　')
             else:
                 jou_data_list.append('~~前条(全)←~~　')
             jijou = article.xpath(
                     'following-sibling::Article[position()=1]')
-            if len(jijou) == 1:
+#             jijou = article.xpath(
+#                     'following-sibling::Article')
+            if len(jijou) != 0:
                 jijou_num = jijou[0].get('Num')
                 if not ':' in jijou_num:
                     jijou_bangou_tuple \
@@ -260,13 +283,14 @@ class ToKachiJoin(object):
                     midashi, '')
 
             d.dprint(file_name)
+            d.dprint(file_name)
 
             read_text = ToKachiJoin.load_line(
                     config.folder_name, file_name)
             d.dprint(read_text)
             for row in range(3, len(read_text)):
                 d.dprint(read_text[row])
-                if read_text[row] == '---\n':
+                if read_text[row] == '--- ---\n':
                     d.dprint("guide")
                     d.dprint(read_text[row])
                     data_list = read_text[:row]
@@ -300,7 +324,8 @@ class ToKachiJoin(object):
                         item,
                         mei, kubun)
                 d.dprint(gou_data_list)
-                data_list.extend(gou_data_list)
+                if gou_data_list != None:
+                    data_list.extend(gou_data_list)
 #                 guide_list.append(gou_guide)
 
             titles = paragraph.xpath('./ParagraphNum')
@@ -312,7 +337,7 @@ class ToKachiJoin(object):
             kou_data_for_jou.append(kou_title)
             kou_data_for_jou.append("　")
             kou_data_for_jou.extend(data_list[3:])
-            data_list.append('---\n\n')
+            data_list.append('--- ---\n\n')
             data_list.extend(guide_list)
             del guide_list
             data_list.append(read_text[-1])
@@ -384,31 +409,28 @@ class ToKachiJoin(object):
                 config.folder_name, file_name)
         d.dprint(read_text)
         for row in range(3, len(read_text)):
-            if read_text[row] == '---\n':
+            if read_text[row] == '--- ---\n':
                 gou_data_list.extend(read_text[3:row])
                 break
         else:
             gou_data_list.extend(read_text[3:])
-#         guide_list = [ '[第' ]
-#         d.dprint(gou_bangou_tuple)
-#         guide_list.append('](')
-#         guide_list.append(file_name)
-#         guide_list.append(')')
-#         guide = ''.join(guide_list)
-#         del guide_list
         d.dprint_method_end()
-#         return (gou_data_list, guide)
         return gou_data_list
 
 
     @classmethod
     def save(cls, folder_name, file_name, file_bun ):
-        # d.dprint_method_start()
+        d.dprint_method_start()
         full_name = os.path.join(folder_name, file_name)
-        with open(full_name,
-            mode='w',
-            encoding='UTF-8') as f:
-            f.write(file_bun)
+        d.dprint(full_name)
+        d.dprint(file_bun)
+        try:
+            with open(full_name,
+                mode='w',
+                encoding='UTF-8') as f:
+                f.write(file_bun)
+        except OSError as e:
+            d.dprint(e)
         d.dprint_method_end()
         return
 
@@ -468,25 +490,31 @@ class ToKachiJoin(object):
 if __name__ == '__main__':
         folder = '.\\org'
         config.folder_name = folder
+#
+#         lines = ToKachiJoin.load_line(folder, "地方法人税法＿＿＿＿＿第１２条第１３項.md")
+#         for line in lines:
+#             d.dprint(line)
+#         src = ''.join(lines)
+#         d.dprint(src)
+# #         for line in src:
+# #             d.dprint(line)
+#         exit()
 
-#         file = "国税通則"
-        file = "地方法人税"
+#         file = "国税通則"   # '0.7.2's
+        file = "地方法人税"  # '0.7.2'
+#         file = '所得税' # '0.7.2'
+#         file = '法人税' # '0.7.2' 附則も
+
+#         file = '消費税' # '0.7.2'
         mei = file
+
+#         file = '消費税_令和５年６月_' # '0.7.2' 附則も
+#         mei = '消費税' # '0.7.2' 附則も
+
+#         file = '相続税_令和６年１月_' # '0.7.1'
+#         mei = '相続税' # '0.7.1'
+
         ToKachiJoin(file + '法.xml', mei, 0)
-#         jou_list = jou_xml.get_jou_list()
-#         index_list = jou_xml.get_index_list()
-#         for jou_jou in jou_list:
-#             save_file( \
-#                     folder, \
-#                     mei, 0, jou_jou)
-#         appdx_list = jou_xml.create_appdxTable(
-#                 index_list, mei, 0)
-#         for (title, text) in appdx_list:
-# #             file_name = file + '法＿＿＿＿' + title + '.md'
-#             file_name = mei + '法＿＿＿＿' + title + '.md'
-#             file_name = os.path.join(folder, file_name)
-#             with open(file_name,
-#                 mode='w',
-#                 encoding='UTF-8') as f:
-#                 f.write(text)
+        ToKachiJoin(file + '法施行令.xml', mei, 1)
+        ToKachiJoin(file + '法施行規則.xml', mei, 2)
 
